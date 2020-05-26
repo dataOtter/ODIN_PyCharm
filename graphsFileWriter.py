@@ -2,27 +2,15 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
-import numpy as np
-from mpl_toolkits.mplot3d import Axes3D
-from IPython.display import display
 from matplotlib.backends.backend_pdf import PdfPages
 
-
-def get_all_files(path: str) -> list:
-    files = []
-    # r=root, d=directories, f = files
-    for r, d, f in os.walk(path):
-        for file in f:
-            files.append(os.path.join(r, file))
-    return files
+import constants
+import df_getters
 
 
-def get_idxs_wo_first(cols) -> list:
-    idxs = []
-    for i in range(len(cols)):
-        col = cols[i]
-        if 'ruleId' in col:
-            idxs.append(i)
+def get_rid_idxs_wo_first(df: pd.DataFrame) -> list:
+    cols = df.columns
+    idxs = constants.get_rid_idxs(cols)
     idxs.append(len(cols))
     idxs = idxs[1:]
     return idxs
@@ -34,13 +22,13 @@ def get_df_chunk(prev_ix, ix, frame):
     t.rename(columns={t.columns[1]: "answered"}, inplace=True)
     t.rename(columns={t.columns[2]: "total_fires"}, inplace=True)
     t.rename(columns={t.columns[3]: "ideal_fires"}, inplace=True)
-    t['range'] = frame['range']
+    t[constants.COL_LABEL_RANGE] = frame[constants.COL_LABEL_RANGE]
     return t
 
 
 def get_df_reformatted(df):
     prev_idx = 0
-    idxs = get_idxs_wo_first(df.columns)
+    idxs = get_rid_idxs_wo_first(df)
     tdf = pd.DataFrame()
 
     for idx in idxs:
@@ -51,17 +39,8 @@ def get_df_reformatted(df):
 
 
 def get_final_df(path_local: str) -> pd.DataFrame:
-    files = get_all_files(path_local)
-    dfs = []
-    for file in files:
-        df = pd.read_csv(file)
-        df['range'] = file[file.rindex('t_') + 2:-4]
-        dfs.append(df)
 
-    for i in range(len(dfs)):
-        df = dfs[i]
-        df.rename(columns={'_couponName': "coupon_name"}, inplace=True)
-        dfs[i] = df.set_index('coupon_name')
+    dfs = df_getters.get_rule_dfs(path_local, drop_full_duration=True)
 
     tdfs = []
     for x in range(len(dfs)):
@@ -81,16 +60,16 @@ def get_final_df(path_local: str) -> pd.DataFrame:
 
 
 def write_to_pdf(df: pd.DataFrame, out_path: str):
-    coupons = set(df['coupon_name'])
+    coupons = set(df[constants.COL_LABEL_CNAME])
 
     with PdfPages(out_path + '\\report_graphs.pdf') as pdf:
 
         for c in coupons:
-            d = df[df['coupon_name'] == c]
+            d = df[df[constants.COL_LABEL_CNAME] == c]
 
             ax = plt.subplot(title="Coupon: " + c)
 
-            grouped_df = d.groupby(['coupon_name', 'rule_id'])
+            grouped_df = d.groupby([constants.COL_LABEL_CNAME, 'rule_id'])
             for key, item in grouped_df:
                 d = grouped_df.get_group(key)
                 lbl = "Rule " + str(d['rule_id'].iloc[0])

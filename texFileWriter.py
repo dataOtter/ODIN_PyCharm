@@ -2,19 +2,12 @@ import os
 import pandas as pd
 import subprocess
 
-
-def get_all_files(path_local: str) -> list:
-    files_local = []
-    # r=root, d=directories, f = files
-    for r, d, f in os.walk(path_local):
-        for file in f:
-            files_local.append(os.path.join(r, file))
-        break
-    return files_local
+import constants
+import df_getters
 
 
 def get_title(in_path: str) -> str:
-    study_id = in_path[in_path.rindex("_")+1:]
+    study_id = constants.get_study_id(in_path)
     return "\\documentclass[landscape]{article} \\usepackage[utf8]{inputenc} \\usepackage{multirow} \
 \\usepackage[table]{xcolor} \\usepackage[margin=0.5in]{geometry} \n \\title{Daily Report for Study: " + study_id + "} \
 \\author{maisha.jauernig } \\begin{document} \\maketitle \\newpage \n\n"
@@ -40,8 +33,9 @@ def get_col(num_cols: int, rids: list, num_subcols: int) -> str:
 def get_row(df_local: pd.DataFrame, df_col_idx_local: int, num_cols: int) -> str:
     table_local = ""
     for r in range(len(df_local)):
-        table_local += df_local.iloc[r]['coupon_name']
+        table_local += df_local.iloc[r][constants.COL_LABEL_CNAME]
 
+        # rewrite to be dynamic, not hard-coded
         for i in range(df_col_idx_local, df_col_idx_local + num_cols, 4):
             ans = df_local.iloc[r, i]
             fired = df_local.iloc[r, i + 1]
@@ -59,9 +53,7 @@ def get_row(df_local: pd.DataFrame, df_col_idx_local: int, num_cols: int) -> str
 
 def get_one_table_page(df_local: pd.DataFrame, all_rids_local: list, num_subcols_local: int,
                        df_col_idx_local: int) -> str:
-    date_local = df_local['range'][0]
-    date_local = date_local[date_local.rindex('to_') + 3:]
-
+    date_local = constants.get_date(df_local)
     table = "\\begin{center} {\\huge " + date_local + " \\\\ } \n"
 
     for rid_idx in range(0, len(all_rids_local), 2):
@@ -85,13 +77,7 @@ def write_file(in_path: str, out_path: str):
     except OSError:
         pass
 
-    files = get_all_files(in_path)
-    dfs = []
-    for file in files:
-        df = pd.read_csv(file)
-        df['range'] = file[file.rindex('tex_') + 2:-4]
-        df.rename(columns={'_couponName': "coupon_name"}, inplace=True)
-        dfs.append(df)
+    dfs = df_getters.get_rule_dfs(in_path)
 
     table = get_title(in_path)
 
@@ -105,7 +91,7 @@ def write_file(in_path: str, out_path: str):
 
     table += "\\end{document}"
     # print(table)
-    file_name = "report.tex"
+    file_name = constants.TEX_REPORT_FILE_NAME
     write_path = out_path + "\\" + file_name
     with open(write_path, "w") as text_file:
         text_file.write(table)
